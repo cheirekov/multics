@@ -315,6 +315,7 @@ void *mg_connect_cli(struct connect_cli_data *param)
 		cli->handle = sock;
 		cli->ip = ip;
 		memset( &cli->ecm, 0, sizeof(cli->ecm) );
+		memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 		cli->connection.status = 1;
 		cli->connection.time = GetTickCount();
 		cli->lastactivity = GetTickCount();
@@ -754,6 +755,16 @@ void mg_cli_recvmsg(struct mg_client_data *cli)
 					buf[1] = 0; buf[2] = 0;
 					if ( !cs_message_send( cli->handle, &clicd, buf, 3, cli->sessionkey) ) { mg_disconnect_cli( cli ); return; }
 					mlogf(LOGINFO,getdbgflagpro(DBG_MGCAMD,0,cli->id,cs->id)," <|> decode failed to mgcamd client '%s' ch %04x:%06x:%04x, ecm length error(%d)\n", cli->user,clicd.caid,clicd.provid,clicd.sid,len);
+					break;
+				}
+				int anticasc_res = acasc_check(cs, &cli->anticasc, cli->user, clicd.caid, clicd.provid, clicd.sid);
+				if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+					cli->ecmdenied++;
+					cs->ecmdenied++;
+					buf[1] = 0; buf[2] = 0;
+					if ( !cs_message_send( cli->handle, &clicd, buf, 3, cli->sessionkey) ) { mg_disconnect_cli( cli ); return; }
+					mlogf(LOGINFO,getdbgflagpro(DBG_MGCAMD,0,cli->id,cs->id)," <|> decode failed to mgcamd client '%s' ch %04x:%06x:%04x, anti-cascading\n", cli->user,clicd.caid,clicd.provid,clicd.sid);
+					if (anticasc_res==ANTICASC_RESULT_DISCONNECT) { mg_disconnect_cli(cli); return; }
 					break;
 				}
 				// ACCEPTED

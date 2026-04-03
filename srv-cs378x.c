@@ -40,6 +40,7 @@ void cs378x_disconnect_cli(struct camd35_client_data *cli)
 	cli->connection.lastseen = ticks; // Last Seen
 	close(cli->handle);
 	cli->handle = -1;
+	memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 	mlogf(LOGINFO,0," cs378x: client '%s' disconnected \n", cli->user);
 }
 
@@ -113,6 +114,7 @@ void *cs378x_connect_cli(struct connect_cli_data *param)
 		cli->connection.time = GetTickCount();
 		cli->handle = sock;
 		cli->ip = ip;
+		memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 		pipe_wakeup( prg.pipe.cs378x[1] );
 	}
 #ifdef CACHEEX
@@ -367,6 +369,7 @@ void cs378x_cli_recvmsg( struct camd35_client_data *cli )
 			if ( !cs378x_send( cli->handle, &cli->encryptkey, cli->ucrc, buf+4, 20+1) ) cs378x_disconnect_cli( cli );
 			else if (cli->connection.status<=0) {
 				mlogf(LOGINFO,getdbgflag(DBG_CS378X,0,cli->id)," cs378x: client '%s' connected\n", cli->user);
+			memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 				cli->connection.status = 1;
 				cli->connection.time = GetTickCount();
 			}
@@ -481,6 +484,17 @@ void cs378x_cli_recvmsg( struct camd35_client_data *cli )
 				buf[5] = 0;
 				if ( !cs378x_send( cli->handle, &cli->encryptkey, cli->ucrc, buf+4, 20) ) cs378x_disconnect_cli( cli );
 				else mlogf(LOGINFO,getdbgflagpro(DBG_CS378X,0,cli->id,cs->id)," <!> decode failed to cs378x client '%s' ch %04x:%06x:%04x SID not accepted\n", cli->user,caid,provid,sid);
+				break;
+			}
+			int anticasc_res = acasc_check(cs, &cli->anticasc, cli->user, caid, provid, sid);
+			if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+				cli->ecmdenied++;
+				cs->ecmdenied++;
+				buf[4] = 0x44;
+				buf[5] = 0;
+				if ( !cs378x_send( cli->handle, &cli->encryptkey, cli->ucrc, buf+4, 20) ) cs378x_disconnect_cli( cli );
+				else mlogf(LOGINFO,getdbgflagpro(DBG_CS378X,0,cli->id,cs->id)," <!> decode failed to cs378x client '%s' ch %04x:%06x:%04x, anti-cascading\n", cli->user,caid,provid,sid);
+				if (anticasc_res==ANTICASC_RESULT_DISCONNECT) cs378x_disconnect_cli(cli);
 				break;
 			}
 

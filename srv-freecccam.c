@@ -239,6 +239,7 @@ void *freecccam_connect_cli(struct connect_cli_data *param)
 	cli->msg.len = 0;
 	cli->handle = sock;
 	cli->ecm.busy = 0;
+	memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 	strcpy( cli->user, ip2string(cli->ip) );
 
 //	pthread_mutex_unlock(&prg.lockfreecccli);
@@ -479,6 +480,15 @@ void freecccam_cli_recvmsg(struct cc_client_data *cli)
 					cs->ecmdenied++;
 					cc_msg_send( cli->handle, &cli->sendblock, CC_MSG_ECM_NOK2, 0, NULL);
 					mlogf(LOGINFO,0," <|> decode failed to FreeCCcam client(%s) ch %04x:%06x:%04x, %s\n", cli->user, caid,provid,sid, error);
+					break;
+				}
+				int anticasc_res = acasc_check(cs, &cli->anticasc, cli->user, caid, provid, sid);
+				if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+					cli->ecmdenied++;
+					cs->ecmdenied++;
+					cc_msg_send( cli->handle, &cli->sendblock, CC_MSG_ECM_NOK2, 0, NULL);
+					mlogf(LOGINFO,0," <|> decode failed to FreeCCcam client(%s) ch %04x:%06x:%04x, anti-cascading\n", cli->user, caid,provid,sid);
+					if (anticasc_res==ANTICASC_RESULT_DISCONNECT) freecccam_disconnect_cli(cli);
 					break;
 				}
 				// ACCEPTED

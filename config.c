@@ -304,6 +304,11 @@ cs->option.server.lb_mincount  = 3; /* Phase 3: block after 3 consecutive timeou
 	cs->option.dcw.check = 0; // default: off
 	cs->option.dcw.cwcycle = 0; // default: off
 	cs->option.dcw.cwcycle_action = 0; // default: drop
+	cs->option.anticasc.enable = 0; // default: off
+	cs->option.anticasc.penalty = ANTICASC_PENALTY_LOG;
+	cs->option.anticasc.maxecm = 30;
+	cs->option.anticasc.maxsid = 3;
+	cs->option.anticasc.window = 60;
 	// Shares
 	cs->option.fsharecccam = 1;
 	cs->option.fsharenewcamd = 1;
@@ -1861,6 +1866,49 @@ sid accept:
 				}
 #endif
 			}
+			else if (!strcmp(str,"ANTICASC")) {
+				parse_name(str);
+				uppercase(str);
+				if (!strcmp(str,"MAXECM")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					parse_int(str);
+					defaultcs.option.anticasc.maxecm = atoi(str);
+				}
+				else if (!strcmp(str,"MAXSID")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					parse_int(str);
+					defaultcs.option.anticasc.maxsid = atoi(str);
+				}
+				else if (!strcmp(str,"WINDOW")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					parse_int(str);
+					defaultcs.option.anticasc.window = atoi(str);
+				}
+				else if (!strcmp(str,"PENALTY")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					parse_name(str);
+					uppercase(str);
+					if (!strcmp(str,"DISCONNECT")) defaultcs.option.anticasc.penalty = ANTICASC_PENALTY_DISCONNECT;
+					else if (!strcmp(str,"DENY")) defaultcs.option.anticasc.penalty = ANTICASC_PENALTY_DENY;
+					else defaultcs.option.anticasc.penalty = ANTICASC_PENALTY_LOG;
+				}
+			}
 			else if ( !strcmp(str,"SERVER") ) {
 				parse_name(str);
 				uppercase(str);
@@ -2178,6 +2226,14 @@ continue;
 					} else iparser++;
 					defaultcs.option.fallowcs378x = !parse_boolean();
 				}
+				else if (!strcmp(str,"ANTICASC")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					defaultcs.option.anticasc.enable = !parse_boolean();
+				}
 				/* else if (!strcmp(str,"SKIPCWC")) {
 					parse_spaces();
 					if ((*iparser!=':')&&(*iparser!='=')) {
@@ -2247,6 +2303,14 @@ continue;
 						continue;
 					} else iparser++;
 					defaultcs.option.fallowcs378x = parse_boolean();
+				}
+				else if (!strcmp(str,"ANTICASC")) {
+					parse_spaces();
+					if ((*iparser!=':')&&(*iparser!='=')) {
+						mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+						continue;
+					} else iparser++;
+					defaultcs.option.anticasc.enable = parse_boolean();
 				}
 				/* else if (!strcmp(str,"SKIPCWC")) {
 					parse_spaces();
@@ -3439,6 +3503,53 @@ link_mgcamd_user:
 #endif
 #endif
 		}
+		else if (!strcmp(str,"ANTICASC")) {
+			if (!cardserver) {
+				mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): Skip ANTICASC, undefined profile\n",file->nbline,iparser-currentline);
+				continue;
+			}
+			parse_name(str);
+			uppercase(str);
+			if (!strcmp(str,"MAXECM")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				parse_int(str);
+				cardserver->option.anticasc.maxecm = atoi(str);
+			}
+			else if (!strcmp(str,"MAXSID")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				parse_int(str);
+				cardserver->option.anticasc.maxsid = atoi(str);
+			}
+			else if (!strcmp(str,"WINDOW")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				parse_int(str);
+				cardserver->option.anticasc.window = atoi(str);
+			}
+			else if (!strcmp(str,"PENALTY")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				parse_name(str);
+				uppercase(str);
+				if (!strcmp(str,"DISCONNECT")) cardserver->option.anticasc.penalty = ANTICASC_PENALTY_DISCONNECT;
+				else if (!strcmp(str,"DENY")) cardserver->option.anticasc.penalty = ANTICASC_PENALTY_DENY;
+				else cardserver->option.anticasc.penalty = ANTICASC_PENALTY_LOG;
+			}
+		}
 
 		else if (!strcmp(str,"SERVER")) {
 			if (!cardserver) {
@@ -3730,6 +3841,14 @@ parse_spaces();
 				} else iparser++;
 				cardserver->option.fallowcache = !parse_boolean();
 			}
+			else if (!strcmp(str,"ANTICASC")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				cardserver->option.anticasc.enable = !parse_boolean();
+			}
 			/* else if (!strcmp(str,"SKIPCWC")) {
 				parse_spaces();
 				if ((*iparser!=':')&&(*iparser!='=')) {
@@ -3789,6 +3908,14 @@ parse_spaces();
 					continue;
 				} else iparser++;
 				cardserver->option.fallowcache = parse_boolean();
+			}
+			else if (!strcmp(str,"ANTICASC")) {
+				parse_spaces();
+				if ((*iparser!=':')&&(*iparser!='=')) {
+					mlogf(LOGERROR,getdbgflag(DBG_CONFIG,0,0)," config(%d,%d): ':' expected\n",file->nbline,iparser-currentline);
+					continue;
+				} else iparser++;
+				cardserver->option.anticasc.enable = parse_boolean();
 			}
 			/* else if (!strcmp(str,"SKIPCWC")) {
 				parse_spaces();

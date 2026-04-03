@@ -66,6 +66,23 @@ struct sharelimit_data {
 	uint8_t uphops; // 0: deny
 };
 
+#define ANTICASC_PENALTY_LOG        0
+#define ANTICASC_PENALTY_DENY       1
+#define ANTICASC_PENALTY_DISCONNECT 2
+
+#define ANTICASC_RESULT_ALLOW       0
+#define ANTICASC_RESULT_LOG         1
+#define ANTICASC_RESULT_DENY        2
+#define ANTICASC_RESULT_DISCONNECT  3
+
+struct anticasc_data {
+	uint32_t window_start; // GetTickCount() when current anti-casc window started
+	uint32_t violations;   // number of anti-casc threshold hits
+	uint16_t ecm_count;    // ECMs seen inside current window
+	uint16_t sid_count;    // SID changes/unique observations inside current window
+	uint16_t last_sid;     // last SID seen in this window
+};
+
 struct ip2country_data {
 	struct ip2country_data *next;
 	uint32_t ipstart;
@@ -343,6 +360,7 @@ struct PACK cs_client_data
 	int zap;
 	int nblogin; // Total Number of logins
 	int nbloginerror; // Total Number of logins
+	struct anticasc_data anticasc;
 	int nbdiffip; // Total Number of logins with different IP's
 
 	// ECM
@@ -414,6 +432,7 @@ struct PACK rdgd_client_data { // Connected Client
 	int zap;
 	int nblogin; // Total Number of logins
 	int nbloginerror; // Total Number of logins
+	struct anticasc_data anticasc;
 	int nbdiffip; // Total Number of logins with different IP's
 
 	struct {
@@ -525,6 +544,7 @@ struct PACK camd35_client_data { // Connected Client
 
 	int freeze; //a freeze: is a decode failed to a channel opened last time within 3mn
 	int zap;
+	struct anticasc_data anticasc;
 
 	struct {
 		int busy; // if ecmbusy dont process anyother ecm until that current ecm was finished
@@ -673,6 +693,13 @@ struct cardserver_data
 		uint8_t checkecmlength; // length header
 
 		int maxfailedecm; // Max failed ecm per sid
+		struct {
+			uint8_t enable;   // 1=enable anti-cascading checks
+			uint8_t penalty;  // ANTICASC_PENALTY_*
+			uint16_t maxecm;  // max ECM requests per window
+			uint16_t maxsid;  // max SID changes/unique observations per window
+			uint32_t window;  // window size in seconds
+		} anticasc;
 
 		int faccept0sid;
 		int faccept0provider;
@@ -1064,6 +1091,7 @@ struct PACK cc_client_data { // Connected Client
 	int zap;
 	int nblogin; // Total Number of logins
 	int nbloginerror; // Total Number of logins
+	struct anticasc_data anticasc;
 	int nbdiffip; // Total Number of logins with different IP's
 	int nbdcwerr; // dcw sent to client but not client never received it !!!
 
@@ -1204,6 +1232,7 @@ struct PACK mg_client_data
 #ifdef SRV_CSCACHE
 	int cachedcw; // dcw from client
 #endif
+	struct anticasc_data anticasc;
 
 	struct {
 		int busy; // if ecmbusy dont process anyother ecm until that current ecm was finished

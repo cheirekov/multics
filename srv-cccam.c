@@ -562,6 +562,7 @@ void *cc_connect_cli(struct connect_cli_data *param)
 	cli->cardsent = 0;
 	memset( &cli->ecm, 0, sizeof(cli->ecm) );
 	memset( &cli->lastecm, 0, sizeof(cli->lastecm) );
+	memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 
 	cli->handle = sock;
 	cli->connection.status = 1;
@@ -928,6 +929,18 @@ void cc_cli_parsemsg(struct cc_client_data *cli, uint8_t *buf, int len)
 					return;
 				}
 				mlogf(LOGINFO,getdbgflagpro(DBG_CCCAM,cli->parent->id,cli->id,cs->id)," <|> decode failed to CCcam client '%s' ch %04x:%06x:%04x, %s\n", cli->user, caid,provid,sid, error);
+				break;
+			}
+			int anticasc_res = acasc_check(cs, &cli->anticasc, cli->user, caid, provid, sid);
+			if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+				cs->ecmdenied++;
+				cli->ecmdenied++;
+				if (!cc_msg_send( cli->handle, &cli->sendblock, CC_MSG_ECM_NOK1, 0, NULL)) {
+					cc_disconnect_cli(cli);
+					return;
+				}
+				mlogf(LOGINFO,getdbgflagpro(DBG_CCCAM,cli->parent->id,cli->id,cs->id)," <|> decode failed to CCcam client '%s' ch %04x:%06x:%04x, anti-cascading\n", cli->user, caid,provid,sid);
+				if (anticasc_res==ANTICASC_RESULT_DISCONNECT) cc_disconnect_cli(cli);
 				break;
 			}
 

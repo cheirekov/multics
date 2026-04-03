@@ -467,6 +467,7 @@ struct connect_cli_data {
 };
 void forward_cs378x(ECM_DATA *ecm);
 
+#include "anticasc.c"
 
 #include "srv-newcamd.c"
 #ifdef MGCAMD_SRV

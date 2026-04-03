@@ -66,6 +66,17 @@ void rdgd_senddcw_cli(struct rdgd_client_data *cli)
 	cli->ecm.status = STAT_DCW_SENT;
 }
 
+void rdgd_sendfail_cli(struct rdgd_client_data *cli, uint16_t caid, uint32_t provid, uint16_t sid, const char *reason)
+{
+	unsigned char buf[4] = { 0x02, 0x02, 0x04, 0x00 };
+
+	if (!cli || (cli->handle==INVALID_SOCKET)) return;
+	rdgd_message_send(cli->handle, buf, sizeof(buf));
+	if (reason) {
+		mlogf(LOGINFO,0, " |> decode failed to client (%s) ch %04x:%06x:%04x, %s\n", ip2string(cli->ip), caid, provid, sid, reason);
+	}
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -263,7 +274,18 @@ void rdgd_cli_recvmsg(struct rdgd_client_data *cli, struct cardserver_data *cs)
 					}
 
 					if (!accept_ecm(cs,caid,provid,0)) {
-						rdgd_senddcw_cli(cli);
+						rdgd_sendfail_cli(cli, caid, provid, 0, "channel not accepted");
+						break;
+					}
+					int anticasc_res = acasc_check(cs, &cli->anticasc, ip2string(cli->ip), caid, provid, 0);
+					if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+						cs->ecmdenied++;
+						cli->ecmdenied++;
+						rdgd_sendfail_cli(cli, caid, provid, 0, "anti-cascading");
+						if (anticasc_res==ANTICASC_RESULT_DISCONNECT) {
+							rdgd_disconnect_cli(cs,cli);
+							break;
+						}
 						break;
 					}
 

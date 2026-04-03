@@ -173,6 +173,7 @@ link: $(OBJECTS)
 $(OUTPUT)/httpserver.o: httpserver.h httpbuffer.c httpserver.c
 
 $(OUTPUT)/main.o: main.c Makefile common.h httpserver.h config.h clustredcache.c cacheex.c pipe.c pipe.h \
+	anticasc.c \
 	th-ecm.c th-cfg.c th-dns.c th-date.c th-srv.c \
 	srv-cccam.c srv-newcamd.c srv-mgcamd.c srv-radegast.c srv-freecccam.c srv-camd35.c srv-cs378x.c \
 	cli-common.c cli-cccam.c cli-newcamd.c cli-radegast.c cli-camd35.c cli-cs378x.c

@@ -191,6 +191,7 @@ void *cs_connect_cli(struct connect_cli_data *param)
 		cli->handle = sock;
 		cli->ip = ip;
 		memset( &cli->ecm, 0, sizeof(cli->ecm) );
+		memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 		cli->connection.status = 1;
 		cli->connection.time = GetTickCount();
 		cli->lastactivity = GetTickCount();
@@ -476,6 +477,16 @@ void cs_cli_recvmsg(struct cs_client_data *cli)
 					}
 
 					clicd.caid = cs->card.caid; // if caid == 0
+					int anticasc_res = acasc_check(cs, &cli->anticasc, cli->user, clicd.caid, clicd.provid, clicd.sid);
+					if ((anticasc_res==ANTICASC_RESULT_DENY) || (anticasc_res==ANTICASC_RESULT_DISCONNECT)) {
+						cs->ecmdenied++;
+						cli->ecmdenied++;
+						buf[1] = 0; buf[2] = 0;
+						if ( !cs_message_send( cli->handle, &clicd, buf, 3, cli->sessionkey) ) cs_disconnect_cli( cli );
+						else mlogf(LOGINFO,getdbgflag(DBG_NEWCAMD,cli->pid,cli->id)," <|> decode failed to client '%s' ch %04x:%06x:%04x, anti-cascading\n",cli->user, clicd.caid,clicd.provid,clicd.sid);
+						if (anticasc_res==ANTICASC_RESULT_DISCONNECT) cs_disconnect_cli(cli);
+						break;
+					}
 
 					// ACCEPTED
 					pthread_mutex_lock(&prg.lockecm); //###

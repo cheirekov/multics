@@ -186,8 +186,7 @@ int mgcamd_connector_recvmsg(struct mgcamd_connect_status_data *connector)
 			}
 			// OK
 			cli->nblogin++;
-			// Store program id
-			cli->progid = clicd.sid;
+			mg_update_client_caps(cli, &clicd);
 			// Send ACK
 			buf[0] = MSG_CLIENT_2_SERVER_LOGIN_ACK;
 			buf[1] = 0;
@@ -205,6 +204,7 @@ int mgcamd_connector_recvmsg(struct mgcamd_connect_status_data *connector)
 			cli->handle = connector->fd;
 			cli->ip = connector->ip;
 			memset( &cli->ecm, 0, sizeof(cli->ecm) );
+			memset( &cli->anticasc, 0, sizeof(cli->anticasc) );
 			cli->connection.status = 1;
 			cli->connection.time = GetTickCount();
 			cli->lastactivity = GetTickCount();

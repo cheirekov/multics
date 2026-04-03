@@ -160,7 +160,7 @@ int cs_message_receive(int sock,struct cs_custom_data *cd, unsigned char *buffer
 		cd->msgid = (netbuf[2] << 8) | netbuf[3];
 		cd->sid = (netbuf[4] << 8) | netbuf[5];
 		cd->caid = (netbuf[6] << 8) | netbuf[7];
-		cd->provid = (netbuf[8] << 16) | (netbuf[9] << 8) | netbuf[10];
+		cd->provid = ((uint32_t)netbuf[11] << 24) | ((uint32_t)netbuf[8] << 16) | ((uint32_t)netbuf[9] << 8) | (uint32_t)netbuf[10];
 	}
   memcpy(buffer, netbuf+12, returnLen);
   return returnLen;
@@ -235,7 +235,7 @@ int cs_msg_peek(int handle,struct cs_custom_data *cd, unsigned char *buffer, uns
 		cd->msgid = (netbuf[2] << 8) | netbuf[3];
 		cd->sid = (netbuf[4] << 8) | netbuf[5];
 		cd->caid = (netbuf[6] << 8) | netbuf[7];
-		cd->provid = (netbuf[8] << 16) | (netbuf[9] << 8) | netbuf[10];
+		cd->provid = ((uint32_t)netbuf[11] << 24) | ((uint32_t)netbuf[8] << 16) | ((uint32_t)netbuf[9] << 8) | (uint32_t)netbuf[10];
 	}
 	memcpy(buffer, netbuf+12, returnLen);
 	return returnLen;

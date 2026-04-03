@@ -82,6 +82,118 @@ void mg_sendcard_del(struct cardserver_data *cs, struct mgcamdserver_data *mgcam
 	}
 }
 
+static void mg_update_client_caps(struct mg_client_data *cli, struct cs_custom_data *clicd)
+{
+	cli->progid = clicd->sid;
+	cli->mgversion = (clicd->provid >> 24) & 0xff;
+	cli->sidlist = (cli->progid==0x6D67) && (cli->mgversion==0x11);
+}
+
+static int mg_get_single_profile(struct mgcamdserver_data *mgcamd, struct mg_client_data *cli, struct cardserver_data **onlycs)
+{
+	int count = 0;
+	int i;
+	struct cardserver_data *cs;
+
+	*onlycs = NULL;
+
+	if (cli->csport[0]) {
+		for (i=0; i<MAX_CSPORTS; i++) {
+			if (!cli->csport[i]) break;
+			cs = getcsbyport(cli->csport[i]);
+			if ( cs && cs->option.fsharemgcamd && !(cli->flags&FLAG_EXPIRED) ) {
+				count++;
+				if (count==1) *onlycs = cs;
+				else { *onlycs = NULL; return count; }
+			}
+		}
+	}
+	else if (mgcamd->csport[0]) {
+		for (i=0; i<MAX_CSPORTS; i++) {
+			if (!mgcamd->csport[i]) break;
+			cs = getcsbyport(mgcamd->csport[i]);
+			if ( cs && cs->option.fsharemgcamd && !(cli->flags&FLAG_EXPIRED) ) {
+				count++;
+				if (count==1) *onlycs = cs;
+				else { *onlycs = NULL; return count; }
+			}
+		}
+	}
+	else {
+		cs = cfg.cardserver;
+		while (cs) {
+			if ( cs->option.fsharemgcamd && !(cli->flags&FLAG_EXPIRED) ) {
+				count++;
+				if (count==1) *onlycs = cs;
+				else { *onlycs = NULL; return count; }
+			}
+			cs = cs->next;
+		}
+	}
+
+	return count;
+}
+
+static int mg_send_sidlist(struct mgcamdserver_data *mgcamd, struct mg_client_data *cli, struct cardserver_data *cs)
+{
+	uint8_t buf[CWS_NETMSGSIZE];
+	struct cs_custom_data clicd;
+	int i;
+	int total = 0;
+	int portion = 0;
+	int len = 3;
+
+	if ( !cli->sidlist || !cs || !cs->sidlist.data || !cs->sidlist.deny ) return 0;
+
+	memset(&clicd, 0, sizeof(clicd));
+	memset(buf, 0, sizeof(buf));
+	buf[0] = EXT_SID_LIST;
+	buf[1] = 0;
+	buf[2] = 0;
+	clicd.caid = mgcamd->port;
+	clicd.provid = 0x14000001;
+
+	for (i=0; i<cs->sidlist.total; i++) {
+		struct sid_chid_ecmlen_data *sid = &cs->sidlist.data[i];
+		if (!sid->sid) break;
+		if (sid->chid || sid->ecmlen) continue;
+
+		if (!portion) {
+			clicd.sid = sid->sid;
+			portion = 1;
+		}
+		else {
+			buf[len++] = sid->sid >> 8;
+			buf[len++] = sid->sid & 0xff;
+			buf[len++] = 0x01;
+			portion++;
+		}
+
+		total++;
+		if (portion>=50) {
+			if ( !cs_message_send(cli->handle, &clicd, buf, len, cli->sessionkey) ) {
+				mg_disconnect_cli(cli);
+				return -1;
+			}
+			portion = 0;
+			len = 3;
+		}
+	}
+
+	if (portion>0) {
+		if ( !cs_message_send(cli->handle, &clicd, buf, len, cli->sessionkey) ) {
+			mg_disconnect_cli(cli);
+			return -1;
+		}
+	}
+
+	if (total) {
+		mlogf(LOGINFO,getdbgflag(DBG_MGCAMD,0,cli->id)," mgcamd: send %d SID deny entries to client '%s'\n", total, cli->user);
+	}
+
+	return 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // DISCONNECT
 ///////////////////////////////////////////////////////////////////////////////
@@ -295,8 +407,7 @@ void *mg_connect_cli(struct connect_cli_data *param)
 #ifdef IPLIST
 		if (ipdata) iplist_goodlogin(ipdata);
 #endif
-		// Store program id
-		cli->progid = clicd.sid;
+		mg_update_client_caps(cli, &clicd);
 
 		buf[0] = MSG_CLIENT_2_SERVER_LOGIN_ACK;
 		buf[1] = 0;
@@ -662,6 +773,12 @@ void mg_cli_recvmsg(struct mg_client_data *cli)
 								if ( !cs_message_send(cli->handle, &clicd, buf, 3, cli->sessionkey) ) {	mg_disconnect_cli( cli ); return; }
 						}
 						cs = cs->next;
+					}
+				}
+				if (cli->sidlist) {
+					struct cardserver_data *sidcs = NULL;
+					if ( mg_get_single_profile(mgcamd, cli, &sidcs)==1 ) {
+						if ( mg_send_sidlist(mgcamd, cli, sidcs)<0 ) return;
 					}
 				}
 				mlogf(LOGINFO,getdbgflag(DBG_MGCAMD,0,cli->id)," mgcamd: send card data to client '%s'\n", cli->user);

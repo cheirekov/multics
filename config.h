@@ -1202,6 +1202,8 @@ struct PACK mg_client_data
 	int ipoll;
 	uint32_t chkrecvtime; // message recv time
 	uint16_t progid; // program id ex: 0x4343=>CCcam/ 0x0000=>Generic
+	uint8_t mgversion; // mgcamd/newcamd extra header byte (netbuf[11])
+	uint8_t sidlist; // client requested EXT_SID_LIST deny-list export
 	uint8_t sessionkey[16];
 	struct message_data msg;
 	// Connection time

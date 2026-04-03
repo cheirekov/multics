@@ -2962,6 +2962,7 @@ char *programid(unsigned int id)
 		{ "sbcl", 0x5342 },
 		{ "NextYE2k", 0x6E65 },
 		{ "NextYE2k", 0x4E58 },
+		{ "Paco", 0x0796 },
 		{ "DiabloCam/UW", 0x4453 },
 		{ "OScam", 0x8888 },
 		{ "Scam", 0x7363 },
